@@ -1,0 +1,16 @@
+fastp:
+  threads: 16 # Max 16
+  memory: 5000
+minimap2:
+  threads: 3 # Max 3
+  memory: 5000
+bwa:
+  threads: 8
+  memory: 5000
+samtools_sort:
+  threads: 20
+  memory: 5000
+mark_duplication:
+  threads: 20
+  memory: 5000
+ 

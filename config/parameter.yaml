@@ -1,0 +1,20 @@
+# Config file for parameters and supplementary files
+
+# Preprocessing 
+adapter_sequence_1: CTGTCTCTTATACACATCTCCGAGCCCACGAGAC
+adapter_sequence_2: CTGTCTCTTATACACATCTGACGCTGCCGACGA
+
+# Alignment
+aligner: minimap2 # minimap2 or bwa
+reference_genome: /gsc/resources/Homo_sapiens_genomes/hg38_no_alt/genome/fasta/hg38_no_alt.fa
+
+# QC - Fastq screen
+fastq_screen:
+  mouse:
+    /projects/steiflab/scratch/glchang/mondrian/reference/mouse/mm10_build38_mouse
+  salmon:
+    /projects/steiflab/scratch/glchang/mondrian/reference/salmon/GCF_002021735.1_Okis_V1_genomic
+
+     
+
+    
