@@ -1,2 +1,3 @@
-**.snakemake/
-**output/
+.snakemake*
+output*
+input*
