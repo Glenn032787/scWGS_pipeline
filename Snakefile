@@ -12,14 +12,75 @@ rule all:
     input: expand("output/"+sample_id+"/{cell_id}/2_alignment/{cell_id}.markDup.bam", cell_id = cell_ids)
 
 ###############
+# QC Metrics for fastq
+###############
+
+# Generate fastq screen config file
+rule fastq_screen_config:
+    output: "output/fastq.config"
+    script:
+        "src/generateFastqScreen.py"
+
+# Run fastq_screen to detect contamination
+rule fastq_screen: 
+    input: 
+        fq1 = input_dir + "/{cell_id}_1.fastq.gz",
+        fq2 = input_dir + "/{cell_id}_2.fastq.gz",
+        config = "output/fastq.config"
+    output:
+        tagged_fq1 = "output/{sample_id}/{cell_id}/1_preprocessing/{cell_id}_1.tagged.fastq.gz",
+        tagged_fq2 = "output/{sample_id}/{cell_id}/1_preprocessing/{cell_id}_2.tagged.fastq.gz"
+    singularity: "docker://quay.io/biocontainers/fastq-screen:0.15.3--pl5321hdfd78af_0"
+    threads: 20
+    log: "output/{sample_id}/{cell_id}/log/fastq_screen.log"
+    shell:
+        """
+        mkdir -p output/{wildcards.sample_id}/{wildcards.cell_id}/0_qc/fastp
+        
+        fastq_screen \
+            --aligner bowtie \
+            --conf {input.config} \
+            --outdir output/{wildcards.sample_id}/{wildcards.cell_id}/0_qc/fastp \
+            --tag \
+            --thread {threads} \
+            {input.fq1} {input.fq2} &> {log}
+        
+        mv output/{wildcards.sample_id}/{wildcards.cell_id}/0_qc/fastp/*tagged.fastq.gz \
+            output/{wildcards.sample_id}/{wildcards.cell_id}/1_preprocessing
+        """
+
+rule fastqc: 
+    input: 
+        fq1 = input_dir + "/{cell_id}_1.fastq.gz",
+        fq2 = input_dir + "/{cell_id}_2.fastq.gz",
+    output:
+        html_1 = "output/{sample_id}/{cell_id}/0_qc/fastqc/{cell_id}_1_fastqc.html"
+        zip_1 = "output/{sample_id}/{cell_id}/0_qc/fastqc/{cell_id}_1_fastqc.zip"
+        html_2 = "output/{sample_id}/{cell_id}/0_qc/fastqc/{cell_id}_2_fastqc.html"
+        zip_2 = "output/{sample_id}/{cell_id}/0_qc/fastqc/{cell_id}_2_fastqc.zip"
+    threads: 20
+    log: "output/{sample_id}/{cell_id}/log/fastqc_{f}.log"
+    singularity: "docker://quay.io/biocontainers/fastqc:0.12.1--hdfd78af_0"
+    shell:
+        """
+        mkdir -p output/{wildcards.sample_id}/{wildcards.cell_id}/0_qc/fastqc
+        fastqc \
+            --threads {threads} \
+            --memory {resources.mem_mb} \
+            --outdir output/{wildcards.sample_id}/{wildcards.cell_id}/0_qc/fastqc \
+            {input.fq1} {input.fq2} &> {log}
+        """
+
+
+###############
 # Preprocess fastq
 ###############
 
 # Trims adapter sequence and poly-G tail
 rule fastp:
     input:
-        fq1 = input_dir + "/{cell_id}_1.fastq.gz",
-        fq2 = input_dir + "/{cell_id}_2.fastq.gz"
+        fq1 = "output/{sample_id}/{cell_id}/1_preprocessing/{cell_id}_1.tagged.fastq.gz",
+        fq2 = "output/{sample_id}/{cell_id}/1_preprocessing/{cell_id}_2.tagged.fastq.gz"
     output:
         fq1 = "output/{sample_id}/{cell_id}/1_preprocessing/{cell_id}_1_trimmed.fastq.gz",
         fq2 = "output/{sample_id}/{cell_id}/1_preprocessing/{cell_id}_2_trimmed.fastq.gz",
@@ -95,7 +156,7 @@ elif config['aligner'] == "bwa":
         shell:
             """
             mkdir -p output/{wildcards.sample_id}/{wildcards.cell_id}/2_alignment
-            TODO
+            # TODO 
             """
 
 # Sort and index BAM files
@@ -115,6 +176,10 @@ rule samtools_sort:
         samtools sort -@ {threads} -o {output.sorted_bam} {input} &> {log}
         samtools index -@ {threads} {output.sorted_bam} &> {log}
         """
+
+###############
+# QC Metrics for BAM
+###############
 
 # Mark duplicate reads in BAM files
 rule mark_duplication:
@@ -136,40 +201,21 @@ rule mark_duplication:
             -M {output.metric} &> {log}
         """
 
-###############
-# QC Metrics
-###############
-
-# Generate fastq screen config file
-rule fastq_screen_config:
-    output: "output/fastq.config"
-    script:
-        "src/generateFastqScreen.py"
-
-# Run fastq_screen to detect contamination
-rule fastq_screen: 
-    input: 
-        fq1 = input_dir + "/{cell_id}_1.fastq.gz",
-        fq2 = input_dir + "/{cell_id}_2.fastq.gz",
-        config = "output/fastq.config"
-    output:
-        tagged_fq1 = "output/{sample_id}/{cell_id}/1_preprocessing/{cell_id}_1.tagged.fastq.gz",
-        tagged_fq2 = "output/{sample_id}/{cell_id}/1_preprocessing/{cell_id}_2.tagged.fastq.gz"
-    singularity: "docker://quay.io/biocontainers/fastq-screen:0.15.3--pl5321hdfd78af_0"
-    threads: 20
-    log: "output/{sample_id}/{cell_id}/log/fastq_screen.log"
+# Flagstat metric
+rule flagstat:
+    input: "output/{sample_id}/{cell_id}/2_alignment/{cell_id}.markDup.bam"
+    output: "output/{sample_id}/{cell_id}/0_qc/flagstat/{cell_id}.flagstat.txt"
+    singularity: "docker://quay.io/biocontainers/samtools:1.19--h50ea8bc_0"
+    log: "output/{sample_id}/{cell_id}/log/flagstat.log"
+    threads: 1
+    resources:
+        mem_mb = config["flagstat"]["memory"],
+        cpus=1
     shell:
         """
-        mkdir -p output/{wildcards.sample_id}/{wildcards.cell_id}/0_qc/fastp
-        
-        fastq_screen \
-            --aligner bowtie \
-            --conf {input.config} \
-            --outdir output/{wildcards.sample_id}/{wildcards.cell_id}/0_qc/fastp \
-            --tag \
-            --thread {threads} \
-            {input.fq1} {input.fq2} &> {log}
-        
-        mv output/{wildcards.sample_id}/{wildcards.cell_id}/0_qc/fastp/*tagged.fastq.gz \
-            output/{wildcards.sample_id}/{wildcards.cell_id}/1_preprocessing
+        mkdir -p 
+        samtools flagstat \
+            -@ {threads} \
+            {input} > {output} 2> {log}
         """
+
