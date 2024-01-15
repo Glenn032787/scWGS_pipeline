@@ -18,4 +18,4 @@ directory = os.path.dirname(snakemake.output[0])
 if not os.path.exists(directory):
     os.makedirs(directory)
     
-create_fastq_screen_config(snakemake.config["fastq_screen"], snakemake.output[0])
+create_fastq_screen_config(snakemake.config["fastq_screen_reference"], snakemake.output[0])
