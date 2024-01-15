@@ -1,3 +1,5 @@
 .snakemake*
 output*
 input*
+.cache*
+.java*
