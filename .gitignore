@@ -3,3 +3,5 @@ output*
 input*
 .cache*
 .java*
+slurm_logs*
+slurm*.out
