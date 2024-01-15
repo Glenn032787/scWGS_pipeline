@@ -201,7 +201,7 @@ rule mark_duplication:
     output: 
         bam = "output/{sample_id}/{cell_id}/2_alignment/{cell_id}.markDup.bam",
         metric = "output/{sample_id}/{cell_id}/2_alignment/{cell_id}.markDup_metric.txt"
-    singularity: "docker://quay.io/biocontainers/gatk4:4.4.0.0--py36hdfd78af_0"
+    singularity: "docker://quay.io/biocontainers/picard:3.1.1--hdfd78af_0"
     log: "output/{sample_id}/{cell_id}/log/sort_index_bam.log"
     threads: 1
     resources:
@@ -209,7 +209,9 @@ rule mark_duplication:
         cpus=1
     shell:
         """
-        gatk MarkDuplicates \
+        picard \
+            -Xmx${resource.mem_mb}M \
+            MarkDuplicates \
             -I {input} \
             -O {output.bam} \
             -M {output.metric} &> {log}
@@ -247,7 +249,9 @@ rule CollectInsertSizeMetrics:
         cpus=1
     shell:
         """
-        picard CollectInsertSizeMetrics \
+        picard \
+            -Xmx${resource.mem_mb}M \
+            CollectInsertSizeMetrics \
             -INPUT {input} \
             -OUTPUT {output.metric} \
             -Histogram_FILE {output.histogram} \
@@ -262,7 +266,7 @@ rule CollectWgsMetrics:
         reference = config["reference_genome"]
     output:
         metric = "output/{sample_id}/{cell_id}/0_qc/WgsMetrics/{cell_id}.wgsMetric.txt",
-    singularity: "docker://quay.io/biocontainers/gatk4:4.4.0.0--py36hdfd78af_0"
+    singularity: "docker://quay.io/biocontainers/picard:3.1.1--hdfd78af_0"
     log: "output/{sample_id}/{cell_id}/log/CollectWgsMetrics.log"
     threads: 1
     resources:
@@ -272,7 +276,9 @@ rule CollectWgsMetrics:
         """
         mkdir -p output/{wildcards.sample_id}/{wildcards.cell_id}/0_qc/WgsMetrics
 
-        gatk CollectWgsMetrics \
+        picard \
+            -Xmx${resource.mem_mb}M \
+            CollectWgsMetrics \
             INPUT={input.bam} \
             OUTPUT={output.metric} \
             REFERENCE_SEQUENCE={input.reference} \
