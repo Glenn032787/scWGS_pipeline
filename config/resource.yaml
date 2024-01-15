@@ -1,3 +1,9 @@
+fastq_screen:
+  threads: 16 
+  memory: 5000
+fastqc:
+  threads: 16 
+  memory: 5000
 fastp:
   threads: 16 # Max 16
   memory: 5000
@@ -12,5 +18,12 @@ samtools_sort:
   memory: 5000
 mark_duplication:
   threads: 20
+  memory: 5000
+flagstat:
+  threads: 20
+  memory: 5000
+CollectInsertSizeMetrics:
+  memory: 5000
+CollectWgsMetrics:
   memory: 5000
  

@@ -9,7 +9,14 @@ sample_id = config["sample_id"]
 cell_ids = config['cell_ids']
 
 rule all:
-    input: expand("output/"+sample_id+"/{cell_id}/2_alignment/{cell_id}.markDup.bam", cell_id = cell_ids)
+    #input: expand("output/"+sample_id+"/{cell_id}/2_alignment/{cell_id}.markDup.bam", cell_id = cell_ids)
+    input: 
+        expand("output/{sample_id}/{cell_id}/0_qc/WgsMetrics/{cell_id}.wgsMetric.txt", sample_id = [sample_id], cell_id = cell_ids),
+        expand("output/{sample_id}/{cell_id}/1_preprocessing/{cell_id}_1.tagged.fastq.gz", sample_id = [sample_id], cell_id = cell_ids),
+        expand("output/{sample_id}/{cell_id}/0_qc/fastqc/{cell_id}_1_fastqc.html", sample_id = [sample_id], cell_id = cell_ids),
+        expand("output/{sample_id}/{cell_id}/0_qc/insertsize/{cell_id}.insertSize.txt", sample_id = [sample_id], cell_id = cell_ids),
+        expand("output/{sample_id}/{cell_id}/0_qc/flagstat/{cell_id}.flagstat.txt", sample_id = [sample_id], cell_id = cell_ids),
+        expand("output/{sample_id}/{cell_id}/2_alignment/{cell_id}.markDup_metric.txt", sample_id = [sample_id], cell_id = cell_ids)
 
 ###############
 # QC Metrics for fastq
@@ -31,14 +38,17 @@ rule fastq_screen:
         tagged_fq1 = "output/{sample_id}/{cell_id}/1_preprocessing/{cell_id}_1.tagged.fastq.gz",
         tagged_fq2 = "output/{sample_id}/{cell_id}/1_preprocessing/{cell_id}_2.tagged.fastq.gz"
     singularity: "docker://quay.io/biocontainers/fastq-screen:0.15.3--pl5321hdfd78af_0"
-    threads: 20
+    threads: config["fastq_screen"]["threads"]
+    resources:
+        mem_mb = config["fastq_screen"]["memory"],
+        cpus = config["fastq_screen"]["threads"]
     log: "output/{sample_id}/{cell_id}/log/fastq_screen.log"
     shell:
         """
-        mkdir -p output/{wildcards.sample_id}/{wildcards.cell_id}/0_qc/fastp
+        mkdir -p output/{wildcards.sample_id}/{wildcards.cell_id}/0_qc/fastq_screen
         
         fastq_screen \
-            --aligner bowtie \
+            --aligner bowtie2 \
             --conf {input.config} \
             --outdir output/{wildcards.sample_id}/{wildcards.cell_id}/0_qc/fastp \
             --tag \
@@ -54,12 +64,15 @@ rule fastqc:
         fq1 = input_dir + "/{cell_id}_1.fastq.gz",
         fq2 = input_dir + "/{cell_id}_2.fastq.gz",
     output:
-        html_1 = "output/{sample_id}/{cell_id}/0_qc/fastqc/{cell_id}_1_fastqc.html"
-        zip_1 = "output/{sample_id}/{cell_id}/0_qc/fastqc/{cell_id}_1_fastqc.zip"
-        html_2 = "output/{sample_id}/{cell_id}/0_qc/fastqc/{cell_id}_2_fastqc.html"
+        html_1 = "output/{sample_id}/{cell_id}/0_qc/fastqc/{cell_id}_1_fastqc.html",
+        zip_1 = "output/{sample_id}/{cell_id}/0_qc/fastqc/{cell_id}_1_fastqc.zip",
+        html_2 = "output/{sample_id}/{cell_id}/0_qc/fastqc/{cell_id}_2_fastqc.html",
         zip_2 = "output/{sample_id}/{cell_id}/0_qc/fastqc/{cell_id}_2_fastqc.zip"
-    threads: 20
-    log: "output/{sample_id}/{cell_id}/log/fastqc_{f}.log"
+    threads: config["fastqc"]["threads"]
+    resources:
+        mem_mb = config["fastqc"]["memory"],
+        cpus = config["fastqc"]["threads"]
+    log: "output/{sample_id}/{cell_id}/log/fastqc.log"
     singularity: "docker://quay.io/biocontainers/fastqc:0.12.1--hdfd78af_0"
     shell:
         """
@@ -177,6 +190,7 @@ rule samtools_sort:
         samtools index -@ {threads} {output.sorted_bam} &> {log}
         """
 
+
 ###############
 # QC Metrics for BAM
 ###############
@@ -201,21 +215,67 @@ rule mark_duplication:
             -M {output.metric} &> {log}
         """
 
-# Flagstat metric
+# Flagstat mtric
 rule flagstat:
     input: "output/{sample_id}/{cell_id}/2_alignment/{cell_id}.markDup.bam"
     output: "output/{sample_id}/{cell_id}/0_qc/flagstat/{cell_id}.flagstat.txt"
     singularity: "docker://quay.io/biocontainers/samtools:1.19--h50ea8bc_0"
     log: "output/{sample_id}/{cell_id}/log/flagstat.log"
-    threads: 1
+    threads: config["flagstat"]["threads"]
     resources:
         mem_mb = config["flagstat"]["memory"],
-        cpus=1
+        cpus=config["flagstat"]["threads"]
     shell:
         """
-        mkdir -p 
+        mkdir -p output/{wildcards.sample_id}/{wildcards.cell_id}/0_qc/flagstat
         samtools flagstat \
             -@ {threads} \
             {input} > {output} 2> {log}
         """
 
+# Insert Size metric
+rule CollectInsertSizeMetrics:
+    input: "output/{sample_id}/{cell_id}/2_alignment/{cell_id}.markDup.bam"
+    output:
+        metric = "output/{sample_id}/{cell_id}/0_qc/insertsize/{cell_id}.insertSize.txt",
+        histogram = "output/{sample_id}/{cell_id}/0_qc/insertsize/{cell_id}.insertSize.png",
+    singularity: "docker://quay.io/biocontainers/picard:3.1.1--hdfd78af_0"
+    log: "output/{sample_id}/{cell_id}/log/CollectInsertSizeMetrics.log"
+    threads: 1
+    resources:
+        mem_mb = config["CollectInsertSizeMetrics"]["memory"],
+        cpus=1
+    shell:
+        """
+        picard CollectInsertSizeMetrics \
+            -INPUT {input} \
+            -OUTPUT {output.metric} \
+            -Histogram_FILE {output.histogram} \
+            -VALIDATION_STRINGENCY LENIENT \
+            -MAX_RECORDS_IN_RAM 150000 &> {log}
+        """
+
+# WGS Metrics
+rule CollectWgsMetrics:
+    input: 
+        bam = "output/{sample_id}/{cell_id}/2_alignment/{cell_id}.markDup.bam",
+        reference = config["reference_genome"]
+    output:
+        metric = "output/{sample_id}/{cell_id}/0_qc/WgsMetrics/{cell_id}.wgsMetric.txt",
+    singularity: "docker://quay.io/biocontainers/gatk4:4.4.0.0--py36hdfd78af_0"
+    log: "output/{sample_id}/{cell_id}/log/CollectWgsMetrics.log"
+    threads: 1
+    resources:
+        mem_mb = config["CollectWgsMetrics"]["memory"],
+        cpus=1
+    shell:
+        """
+        mkdir -p output/{wildcards.sample_id}/{wildcards.cell_id}/0_qc/WgsMetrics
+
+        gatk CollectWgsMetrics \
+            INPUT={input.bam} \
+            OUTPUT={output.metric} \
+            REFERENCE_SEQUENCE={input.reference} \
+            COVERAGE_CAP=500 \
+            MAX_RECORDS_IN_RAM=150000 &> {log}
+        """
