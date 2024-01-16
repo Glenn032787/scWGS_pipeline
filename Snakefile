@@ -31,7 +31,7 @@ rule fastq_screen:
         config = "output/fastq.config"
     output:
         tagged_fq1 = "output/{sample_id}/{cell_id}/1_preprocessing/{cell_id}_1.tagged.fastq.gz",
-        tagged_fq2 = "output/{sample_id}/{cell_id}/1_preprocessing/{cell_id}_2.tagged.fastq.gz"
+        tagged_fq2 = "output/{sample_id}/{cell_id}/1_preprocessing/{cell_id}_2.tagged.fastq.gz",
         metric_fq1 = "output/{sample_id}/{cell_id}/0_qc/fastq_screen/{cell_id}_1_screen.txt",
         metric_fq2 = "output/{sample_id}/{cell_id}/0_qc/fastq_screen/{cell_id}_2_screen.txt"
     singularity: "docker://quay.io/biocontainers/fastq-screen:0.15.3--pl5321hdfd78af_0"
@@ -47,12 +47,12 @@ rule fastq_screen:
         fastq_screen \
             --aligner bowtie2 \
             --conf {input.config} \
-            --outdir output/{wildcards.sample_id}/{wildcards.cell_id}/0_qc/fastp \
+            --outdir output/{wildcards.sample_id}/{wildcards.cell_id}/0_qc/fastq_screen \
             --tag \
             --thread {threads} \
             {input.fq1} {input.fq2} &> {log}
         
-        mv output/{wildcards.sample_id}/{wildcards.cell_id}/0_qc/fastp/*tagged.fastq.gz \
+        mv output/{wildcards.sample_id}/{wildcards.cell_id}/0_qc/fastq_screen/*tagged.fastq.gz \
             output/{wildcards.sample_id}/{wildcards.cell_id}/1_preprocessing
         """
 
@@ -197,7 +197,7 @@ rule mark_duplication:
     output: 
         bam = "output/{sample_id}/{cell_id}/2_alignment/{cell_id}.markDup.bam",
         metric = "output/{sample_id}/{cell_id}/0_qc/markDup/{cell_id}.markDup_metric.txt"
-    singularity: "docker://quay.io/biocontainers/picard-slim_2.27.4--hdfd78af_0.sif"
+    singularity: "docker://quay.io/biocontainers/picard:2.27.5--hdfd78af_0"
     log: "output/{sample_id}/{cell_id}/log/sort_index_bam.log"
     threads: 1
     resources:
@@ -205,10 +205,10 @@ rule mark_duplication:
         cpus=1
     shell:
         """
-        mkdir -p output/{sample_id}/{cell_id}/0_qc/markDup
-        
+        mkdir -p output/{wildcards.sample_id}/{wildcards.cell_id}/0_qc/markDup
+
         picard \
-            -Xmx${resource.mem_mb}M \
+            -Xmx{resources.mem_mb}M \
             MarkDuplicates \
             -I {input} \
             -O {output.bam} \
@@ -241,7 +241,7 @@ rule CollectInsertSizeMetrics:
     output:
         metric = "output/{sample_id}/{cell_id}/0_qc/insertsize/{cell_id}.insertSize.txt",
         histogram = "output/{sample_id}/{cell_id}/0_qc/insertsize/{cell_id}.insertSize.png",
-    singularity: "docker://quay.io/biocontainers/picard-slim_2.27.4--hdfd78af_0.sif"
+    singularity: "docker://quay.io/biocontainers/picard:2.27.5--hdfd78af_0"
     log: "output/{sample_id}/{cell_id}/log/CollectInsertSizeMetrics.log"
     threads: 1
     resources:
@@ -249,8 +249,9 @@ rule CollectInsertSizeMetrics:
         cpus=1
     shell:
         """
+        mkdir -p output/{wildcards.sample_id}/{wildcards.cell_id}/0_qc/insertsize
         picard \
-            -Xmx${resource.mem_mb}M \
+            -Xmx{resources.mem_mb}M \
             CollectInsertSizeMetrics \
             -INPUT {input} \
             -OUTPUT {output.metric} \
@@ -266,7 +267,7 @@ rule CollectWgsMetrics:
         reference = config["reference_genome"]
     output:
         metric = "output/{sample_id}/{cell_id}/0_qc/WgsMetrics/{cell_id}.wgsMetric.txt",
-    singularity: "docker://quay.io/biocontainers/picard-slim_2.27.4--hdfd78af_0.sif"
+    singularity: "docker://quay.io/biocontainers/picard:2.27.5--hdfd78af_0"
     log: "output/{sample_id}/{cell_id}/log/CollectWgsMetrics.log"
     threads: 1
     resources:
@@ -277,7 +278,7 @@ rule CollectWgsMetrics:
         mkdir -p output/{wildcards.sample_id}/{wildcards.cell_id}/0_qc/WgsMetrics
 
         picard \
-            -Xmx${resource.mem_mb}M \
+            -Xmx{resources.mem_mb}M \
             CollectWgsMetrics \
             INPUT={input.bam} \
             OUTPUT={output.metric} \
@@ -348,10 +349,10 @@ rule GCbias:
         bam = finalBAM,
         reference = config["reference_genome"]
     output:
-        metric: "output/{sample_id}/{cell_id}/0_qc/gcBias/{cell_id}.gcBias_metric.txt"
-        chart: "output/{sample_id}/{cell_id}/0_qc/gcBias/{cell_id}.gcBias_metric.pdf"
-        summary: "output/{sample_id}/{cell_id}/0_qc/gcBias/{cell_id}.gcBias_summary.txt"\
-    singularity: "docker://quay.io/biocontainers/picard-slim_2.27.4--hdfd78af_0.sif"
+        metric = "output/{sample_id}/{cell_id}/0_qc/gcBias/{cell_id}.gcBias_metric.txt",
+        chart = "output/{sample_id}/{cell_id}/0_qc/gcBias/{cell_id}.gcBias_metric.pdf",
+        summary = "output/{sample_id}/{cell_id}/0_qc/gcBias/{cell_id}.gcBias_summary.txt"
+    singularity: "docker://quay.io/biocontainers/picard:2.27.5--hdfd78af_0"
     log: "output/{sample_id}/{cell_id}/log/GCbias.log"
     threads: 1
     resources:
@@ -363,7 +364,7 @@ rule GCbias:
 
         picard CollectGcBiasMetrics \
             -I {input.bam} \
-            -O {output.metrics} \
+            -O {output.metric} \
             --CHART_OUTPUT {output.chart} \
             -S {output.summary} \
             -R {input.reference} \
@@ -382,8 +383,8 @@ rule multiQC:
         fastq_screen2 = "output/{sample_id}/{cell_id}/0_qc/fastq_screen/{cell_id}_2_screen.txt",
         zip_1 = "output/{sample_id}/{cell_id}/0_qc/fastqc/{cell_id}_1_fastqc.zip",
         zip_2 = "output/{sample_id}/{cell_id}/0_qc/fastqc/{cell_id}_2_fastqc.zip"
-    output: "output/{wildcards.sample_id}/{wildcards.cell_id}/0_qc/multiqc_report.html"
-    singularity: "docker://quay.io/biocontainers/multiqc_1.19--pyhdfd78af_0"
+    output: "output/{sample_id}/{cell_id}/0_qc/multiqc_report.html"
+    singularity: "docker://quay.io/biocontainers/multiqc:1.19--pyhdfd78af_0"
     log: "output/{sample_id}/{cell_id}/log/multiQC.log"
     threads: 1
     resources:
