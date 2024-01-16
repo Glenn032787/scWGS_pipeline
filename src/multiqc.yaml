@@ -1,0 +1,7 @@
+fn_clean_exts:  
+  - ".flagstat.txt"
+  - ".markDup.bam"
+  - ".sorted.bam"
+  - "_1.fastq.gz"
+  - "_1.tagged.fastq.gz"
+  - "_2.fastq.gz"

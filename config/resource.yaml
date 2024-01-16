@@ -9,10 +9,10 @@ fastp:
   memory: 5000
 minimap2:
   threads: 3 # Max 3
-  memory: 5000
+  memory: 15000
 bwa:
   threads: 8
-  memory: 5000
+  memory: 15000
 samtools_sort:
   threads: 20
   memory: 5000
@@ -26,4 +26,13 @@ CollectInsertSizeMetrics:
   memory: 5000
 CollectWgsMetrics:
   memory: 5000
- 
+removeDup:
+  memory: 5000
+bamToBed:
+  memory: 5000
+getMtCoverage:
+  memory: 5000
+GCbias:
+  memory: 5000
+multiQC:
+  memory: 5000
