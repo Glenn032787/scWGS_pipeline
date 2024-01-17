@@ -3,14 +3,20 @@ configfile: "config/input.yaml"
 configfile: "config/parameter.yaml"
 configfile: "config/resource.yaml"
 
-# Get ids
+# Get utility functions
+include: "src/metadata.smk"
+
+# Get input
 input_dir = config["input_dir"]
 sample_id = config["sample_id"]
 cell_ids = config['cell_ids']
 
+metadata = pd.read_table(config["metadata"])
+
 rule all:
-    input: expand("output/{sample_id}/{cell_id}/0_qc/multiqc_report.html", cell_id = cell_ids, sample_id = [sample_id])
+    #input: expand("output/{sample_id}/{cell_id}/0_qc/multiqc_report.html", cell_id = cell_ids, sample_id = [sample_id])
     localrule: True
+    input: expand("output/{sample_id}/{cell_id}/2_alignment/{cell_id}.tagged.bam", cell_id = ["SA039-A138856-R57-C43"], sample_id = [sample_id])
 
 ###############
 # QC Metrics for fastq
@@ -141,6 +147,8 @@ if config['aligner'] == "minimap2":
         resources:
             mem_mb=config["minimap2"]["memory"],
             cpus=config["minimap2"]["threads"]
+        params:
+            read_group = lambda wc: getRG(wc, metadata = metadata) 
         log: "output/{sample_id}/{cell_id}/log/minimap2.log"
         shell:
             """
@@ -148,6 +156,7 @@ if config['aligner'] == "minimap2":
             minimap2 \
                 -t {threads} \
                 -ax sr \
+                -R "{params.read_group}" \
                 {input.reference} \
                 {input.fq1} {input.fq2} > {output.bam} 2> {log} 
             """
@@ -167,6 +176,14 @@ elif config['aligner'] == "bwa":
             mkdir -p output/{wildcards.sample_id}/{wildcards.cell_id}/2_alignment
             # TODO 
             """
+
+# Add cell barcode (CB) tag to BAM
+rule addCellBarcodeTag:
+    input: "output/{sample_id}/{cell_id}/2_alignment/{cell_id}.bam"
+    output: "output/{sample_id}/{cell_id}/2_alignment/{cell_id}.tagged.bam"
+    singularity: "docker://quay.io/biocontainers/pysam:0.22.0--py38h15b938a_0"
+    script:
+        "src/addTags.py"
 
 # Sort and index BAM files
 rule samtools_sort:
