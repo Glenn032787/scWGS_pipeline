@@ -14,7 +14,6 @@ cell_ids = config['cell_ids']
 metadata = pd.read_table(config["metadata"])
 
 rule all:
-    #input: expand("output/{sample_id}/{cell_id}/0_qc/multiqc_report.html", cell_id = cell_ids, sample_id = [sample_id])
     localrule: True
     input: 
         expand("output/{sample_id}/control.bam", sample_id = sample_id),
@@ -187,11 +186,29 @@ rule addCellBarcodeTag:
     output: "output/{sample_id}/{cell_id}/2_alignment/{cell_id}.tagged.bam"
     singularity: "docker://quay.io/biocontainers/pysam:0.22.0--py38h15b938a_0"
     script:
-        "src/addTags.py"
+        "src/addCBTags.py"
+
+# Add CB tag in the header 
+rule addCellBarcodeHeader:
+    input: "output/{sample_id}/{cell_id}/2_alignment/{cell_id}.tagged.bam"
+    output: "output/{sample_id}/{cell_id}/2_alignment/{cell_id}.reheader.bam"
+    singularity: "docker://quay.io/biocontainers/picard:2.27.5--hdfd78af_0"
+    log: "output/{sample_id}/{cell_id}/log/addCellBarcodeHeader.log"
+    threads: 1
+    resources:
+        #mem_mb = config["addCellBarcodeHeader"]["memory"],
+        cpus=1
+    shell:
+        """
+        picard AddCommentsToBam \
+            I={input} \
+            O={output} \
+            C="CB:\t{wildcards.cell_id}" &> {log}
+        """
 
 # Sort and index BAM files
 rule samtools_sort:
-    input: "output/{sample_id}/{cell_id}/2_alignment/{cell_id}.bam"
+    input: "output/{sample_id}/{cell_id}/2_alignment/{cell_id}.reheader.bam"
     output: 
         sorted_bam = "output/{sample_id}/{cell_id}/2_alignment/{cell_id}.sorted.bam",
         index_bam = "output/{sample_id}/{cell_id}/2_alignment/{cell_id}.sorted.bam.bai"
