@@ -11,8 +11,6 @@ input_dir = config["input_dir"]
 sample_id = config["sample_id"]
 cell_ids = config['cell_ids']
 
-metadata = pd.read_table(config["metadata"])
-
 rule all:
     localrule: True
     input: 
@@ -151,7 +149,7 @@ if config['aligner'] == "minimap2":
             mem_mb=config["minimap2"]["memory"],
             cpus=config["minimap2"]["threads"]
         params:
-            read_group = lambda wc: getRG(wc, metadata = metadata) 
+            read_group = lambda wc: getRG(wc, metadata_path = config["metadata"]) 
         log: "output/{sample_id}/{cell_id}/log/minimap2.log"
         shell:
             """
@@ -185,6 +183,11 @@ rule addCellBarcodeTag:
     input: "output/{sample_id}/{cell_id}/2_alignment/{cell_id}.bam"
     output: "output/{sample_id}/{cell_id}/2_alignment/{cell_id}.tagged.bam"
     singularity: "docker://quay.io/biocontainers/pysam:0.22.0--py38h15b938a_0"
+    threads: 1
+    resources:
+        mem_mb=config["addCellBarcodeTag"]["memory"],
+        cpus=1
+    log: "output/{sample_id}/{cell_id}/log/addCellBarcodeTag.log"
     script:
         "src/addCBTags.py"
 
@@ -196,11 +199,13 @@ rule addCellBarcodeHeader:
     log: "output/{sample_id}/{cell_id}/log/addCellBarcodeHeader.log"
     threads: 1
     resources:
-        #mem_mb = config["addCellBarcodeHeader"]["memory"],
+        mem_mb = config["addCellBarcodeHeader"]["memory"],
         cpus=1
     shell:
         """
-        picard AddCommentsToBam \
+        picard \
+            -Xmx{resources.mem_mb}M \
+            AddCommentsToBam \
             I={input} \
             O={output} \
             C="CB:\t{wildcards.cell_id}" &> {log}
@@ -233,7 +238,7 @@ rule samtools_sort:
 rule mark_duplication:
     input: "output/{sample_id}/{cell_id}/2_alignment/{cell_id}.sorted.bam"
     output: 
-        bam = "output/{sample_id}/{cell_id}/2_alignment/{cell_id}.markDup.bam",
+        bam = "output/{sample_id}/{cell_id}/2_alignment/{cell_id}.final.bam",
         metric = "output/{sample_id}/{cell_id}/0_qc/markDup/{cell_id}.markDup_metric.txt"
     singularity: "docker://quay.io/biocontainers/picard:2.27.5--hdfd78af_0"
     log: "output/{sample_id}/{cell_id}/log/sort_index_bam.log"
@@ -253,7 +258,7 @@ rule mark_duplication:
             -M {output.metric} &> {log}
         """
 
-finalBAM = "output/{sample_id}/{cell_id}/2_alignment/{cell_id}.markDup.bam"
+finalBAM = "output/{sample_id}/{cell_id}/2_alignment/{cell_id}.final.bam"
 
 # Flagstat mtric
 rule flagstat:
@@ -400,7 +405,9 @@ rule GCbias:
         """
         mkdir -p output/{wildcards.sample_id}/{wildcards.cell_id}/0_qc/gcBias
 
-        picard CollectGcBiasMetrics \
+        picard \
+            -Xmx{resources.mem_mb}M \
+            CollectGcBiasMetrics \
             -I {input.bam} \
             -O {output.metric} \
             --CHART_OUTPUT {output.chart} \
@@ -448,16 +455,23 @@ rule addBAMStatus:
         fastq_screen1 = "output/{sample_id}/{cell_id}/0_qc/fastq_screen/{cell_id}_1_screen.txt",
         fastq_screen2 = "output/{sample_id}/{cell_id}/0_qc/fastq_screen/{cell_id}_2_screen.txt"
     output: touch("output/{sample_id}/{cell_id}/2_alignment/statusAdded.txt")
+    singularity: "docker://quay.io/biocontainers/pandas:1.5.2 "
+    log: "output/{sample_id}/{cell_id}/log/addBAMStatus.log"
+    threads: 1
+    resources:
+        mem_mb=config["addBAMStatus"]["memory"],
+        cpus=1
     script:
         "src/addSampleStatus.py"
 
 rule mergeBam:
     input: expand("output/{{sample_id}}/{cell_id}/2_alignment/statusAdded.txt", cell_id = cell_ids, sample_id = [sample_id])
     singularity: "docker://quay.io/biocontainers/samtools:1.19--h50ea8bc_0"
-    threads: 10
+    log: "output/{sample_id}/{cell_id}/log/mergeBam.log"
+    threads: config["mergeBam"]["threads"]
     resources:
-        # mem_mb=config["mergeBam"]["memory"],
-        cpus=10
+        mem_mb=config["mergeBam"]["memory"],
+        cpus=config["mergeBam"]["threads"]
     shell:
         """
         mkdir -p output/{wildcards.sample_id}/log

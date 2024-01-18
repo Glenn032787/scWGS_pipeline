@@ -10,6 +10,10 @@ fastp:
 minimap2:
   threads: 3 # Max 3
   memory: 15000
+addCellBarcodeTag:
+  memory: 5000
+addCellBarcodeHeader:
+  menmory: 5000
 bwa:
   threads: 8
   memory: 15000
@@ -35,4 +39,9 @@ getMtCoverage:
 GCbias:
   memory: 5000
 multiQC:
+  memory: 5000
+addBAMStatus:
+  memory: 5000
+mergeBam:
+  threads: 10
   memory: 5000

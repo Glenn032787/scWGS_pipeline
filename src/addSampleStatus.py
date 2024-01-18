@@ -57,7 +57,11 @@ def addStatus(cell_id, sample_id, metadata_path, bam_file, fastq_path_1, fastq_p
         with open(file_path, 'a') as file:
             file.write(bam_file + '\n')
 
-addStatus(snakemake.wildcards["cell_id"],
+
+
+with open(snakemake.log[0], "w") as f:
+    sys.stderr = sys.stdout = f
+    addStatus(snakemake.wildcards["cell_id"],
           snakemake.wildcards["sample_id"],
           snakemake.config["metadata"], 
           snakemake.input[0], 

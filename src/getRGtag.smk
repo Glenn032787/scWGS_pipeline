@@ -1,7 +1,8 @@
 
 import pandas as pd
 
-def getRG(wildcards, metadata):
+def getRG(wildcards, metadata_path):
+    metadata = pd.read_table(metadata_path)
     metadata_col = list(metadata.columns.values)
     cell_id = wildcards.cell_id
 
