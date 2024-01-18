@@ -1,5 +1,6 @@
 import pandas as pd
 import sys
+pd.options.mode.chained_assignment = None  # default='warn'
 
 CONTROLS = ["gDNA", "NCC", "NTC", "control"]
 
@@ -28,14 +29,16 @@ def addStatus(cell_id, sample_id, metadata_path, bam_file, fastq_path_1, fastq_p
 
         # Find proportion of reads that hits contaimination genome only 
         contamination = fastq_screen[fastq_screen['Genome'] != reference]
-        contamination.loc[:, 'prop_hit'] = (contamination['#One_hit_one_genome'] + contamination['#Multiple_hits_one_genome'])/contamination['#Reads_processed']
+        prop_hit = (contamination['#One_hit_one_genome'] + contamination['#Multiple_hits_one_genome'])/contamination['#Reads_processed']
+        contamination['prop_hit'] = prop_hit
         sumOneGenomeContamination = contamination['prop_hit'].sum()
         singleContamination.append(sumOneGenomeContamination)
 
         # Find proportion of reads that multihit in reference genome (human) 
         multiHit = fastq_screen.filter(['Genome','#Reads_processed', "#One_hit_multiple_genomes", "Multiple_hits_multiple_genomes"])
         multiHit = multiHit[multiHit['Genome'] == 'human']
-        multiHit.loc[:, "prop_multihit"] = (multiHit['#One_hit_multiple_genomes'] + contamination['Multiple_hits_multiple_genomes'])/contamination['#Reads_processed']
+        prop_multihit = (multiHit['#One_hit_multiple_genomes'] + contamination['Multiple_hits_multiple_genomes'])/contamination['#Reads_processed']
+        multiHit["prop_multihit"] = prop_multihit
         multihitHuman = multiHit["prop_multihit"].iloc[0]
         multiHitContamination.append(multihitHuman)
 
