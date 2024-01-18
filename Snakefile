@@ -4,7 +4,7 @@ configfile: "config/parameter.yaml"
 configfile: "config/resource.yaml"
 
 # Get utility functions
-include: "src/metadata.smk"
+include: "src/getRGtag.smk"
 
 # Get input
 input_dir = config["input_dir"]
@@ -16,7 +16,11 @@ metadata = pd.read_table(config["metadata"])
 rule all:
     #input: expand("output/{sample_id}/{cell_id}/0_qc/multiqc_report.html", cell_id = cell_ids, sample_id = [sample_id])
     localrule: True
-    input: expand("output/{sample_id}/{cell_id}/2_alignment/{cell_id}.tagged.bam", cell_id = ["SA039-A138856-R57-C43"], sample_id = [sample_id])
+    input: 
+        expand("output/{sample_id}/control.bam", sample_id = sample_id),
+        expand("output/{sample_id}/experimental.bam", sample_id = sample_id),
+        expand("output/{sample_id}/contamination.bam", sample_id = sample_id),
+
 
 ###############
 # QC Metrics for fastq
@@ -415,3 +419,61 @@ rule multiQC:
             --outdir output/{wildcards.sample_id}/{wildcards.cell_id}/0_qc \
             output/{wildcards.sample_id}/{wildcards.cell_id}/0_qc &> {log}
         """
+
+
+###############
+# Merge BAM files
+###############
+# Sepperate cells by control, contamination and experimental
+rule addBAMStatus:
+    input:
+        bam = finalBAM,
+        fastq_screen1 = "output/{sample_id}/{cell_id}/0_qc/fastq_screen/{cell_id}_1_screen.txt",
+        fastq_screen2 = "output/{sample_id}/{cell_id}/0_qc/fastq_screen/{cell_id}_2_screen.txt"
+    output: touch("output/{sample_id}/{cell_id}/2_alignment/statusAdded.txt")
+    script:
+        "src/addSampleStatus.py"
+
+rule mergeBam:
+    input: expand("output/{{sample_id}}/{cell_id}/2_alignment/statusAdded.txt", cell_id = cell_ids, sample_id = [sample_id])
+    singularity: "docker://quay.io/biocontainers/samtools:1.19--h50ea8bc_0"
+    threads: 10
+    resources:
+        # mem_mb=config["mergeBam"]["memory"],
+        cpus=10
+    shell:
+        """
+        mkdir -p output/{wildcards.sample_id}/log
+
+        bamList={params.bamList}
+        # Check if bam list is empty
+        if [ -s "$bamList" ]; then
+            samtools merge \
+                -o {output} \
+                -b $bamList \
+                -f \
+                -@ {threads} &> {log}
+            rm $bamList
+            samtools index {output} &> {log}
+        else
+            touch {output}
+        fi
+        """
+
+use rule mergeBam as mergeContaminationBam with:
+    output: "output/{sample_id}/contamination.bam"
+    log: "output/{sample_id}/log/mergeContaminationBam.log"
+    params:
+        bamList = "output/{sample_id}/contamination_sample.txt"
+
+use rule mergeBam as mergeExperimentalBam with:
+    output: "output/{sample_id}/experimental.bam"
+    log: "output/{sample_id}/log/mergeContaminationBam.log"
+    params:
+        bamList = "output/{sample_id}/experimental_sample.txt"
+
+use rule mergeBam as mergeControlBam with:
+    output: "output/{sample_id}/control.bam"
+    log: "output/{sample_id}/log/mergeContaminationBam.log"
+    params:
+        bamList = "output/{sample_id}/control_sample.txt"

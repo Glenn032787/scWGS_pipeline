@@ -8,7 +8,12 @@ adapter_sequence_2: CTGTCTCTTATACACATCTGACGCTGCCGACGA
 aligner: minimap2 # minimap2 or bwa
 reference_genome: /gsc/resources/Homo_sapiens_genomes/hg38_no_alt/genome/fasta/hg38_no_alt.fa
 
+# Metadata csv
+metadata: /home/glchang/scratch/scWGS_pipeline/input/metadata.tsv
+
 # QC - Fastq screen
+# Must match one of the fastq reference
+organism: "human" 
 fastq_screen_reference:
   contaminate:
     /projects/steiflab/scratch/glchang/bowtie2_reference/Adapters/Contaminants
