@@ -13,7 +13,7 @@ minimap2:
 addCellBarcodeTag:
   memory: 5000
 addCellBarcodeHeader:
-  menmory: 5000
+  memory: 5000
 bwa:
   threads: 8
   memory: 15000
