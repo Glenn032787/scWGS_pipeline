@@ -21,16 +21,13 @@ def getRG(wildcards, metadata):
     flowcell_id = curr_metadata['flowcell_id'].iloc[0]
     lane_number = curr_metadata['lane_number'].iloc[0]
     machine = curr_metadata['machine'].iloc[0]
-    cell_id = curr_metadata['cell_id'].iloc[0]
-
 
     RG_ID = sample_id + "_" + chip_id + "_" + flowcell_id + "_" + str(lane_number)
     RG_LB = chip_id
     RG_PL = machine
     RG_PU = flowcell_id + "_" + str(lane_number) + "_" + sample_id
     RG_SM = sample_id
-    RG_CO = cell_id
 
-    RG = f"@RG\\tID:{RG_ID}\\tLB:{RG_LB}\\tPL:{RG_PL}\\tPU:{RG_PU}\\tSM:{RG_SM}\\tCO:{RG_CO}"
+    RG = f"@RG\\tID:{RG_ID}\\tLB:{RG_LB}\\tPL:{RG_PL}\\tPU:{RG_PU}\\tSM:{RG_SM}"
 
     return RG

@@ -468,7 +468,7 @@ rule mergeBam:
             samtools merge \
                 -o {output} \
                 -b $bamList \
-                -f \
+                -fc \
                 -@ {threads} &> {log}
             rm $bamList
             samtools index {output} &> {log}
