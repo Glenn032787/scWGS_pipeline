@@ -14,9 +14,8 @@ cell_ids = config['cell_ids']
 rule all:
     localrule: True
     input: 
-        expand("output/{sample_id}/control.bam", sample_id = sample_id),
-        expand("output/{sample_id}/experimental.bam", sample_id = sample_id),
-        expand("output/{sample_id}/contamination.bam", sample_id = sample_id),
+        expand("output/{sample_id}/allMetrics.tsv", sample_id = sample_id),
+        expand("output/{sample_id}/{bamType}.bam", sample_id = sample_id, bamType = ["contamination", 'experimental', "control"])
 
 
 ###############
@@ -444,7 +443,6 @@ rule multiQC:
             output/{wildcards.sample_id}/{wildcards.cell_id}/0_qc &> {log}
         """
 
-
 ###############
 # Merge BAM files
 ###############
@@ -455,7 +453,7 @@ rule addBAMStatus:
         fastq_screen1 = "output/{sample_id}/{cell_id}/0_qc/fastq_screen/{cell_id}_1_screen.txt",
         fastq_screen2 = "output/{sample_id}/{cell_id}/0_qc/fastq_screen/{cell_id}_2_screen.txt"
     output: touch("output/{sample_id}/{cell_id}/2_alignment/statusAdded.txt")
-    singularity: "docker://quay.io/biocontainers/pandas:1.5.2 "
+    singularity: "docker://quay.io/biocontainers/pandas:1.5.2"
     log: "output/{sample_id}/{cell_id}/log/addBAMStatus.log"
     threads: 1
     resources:
@@ -508,3 +506,85 @@ use rule mergeBam as mergeControlBam with:
     log: "output/{sample_id}/log/mergeContaminationBam.log"
     params:
         bamList = "output/{sample_id}/control_sample.txt"
+
+###############
+# Merge QC metric
+###############
+
+rule mergeInserSize:
+    input: expand("output/{{sample_id}}/{cell_id}/0_qc/insertsize/{cell_id}.insertSize.txt", cell_id = cell_ids)
+    output: 
+        metric = "output/{sample_id}/merged_insert_size.tsv",
+        hist = "output/{sample_id}/hist_insert_size.tsv"
+    params: 
+        cell_id_lst = cell_ids
+    script:
+        "src/mergeInsertSize.py"
+
+rule mergeMarkDup:
+    input: expand("output/{{sample_id}}/{cell_id}/0_qc/insertsize/{cell_id}.insertSize.txt", cell_id = cell_ids)
+    output: 
+        metric = "output/{sample_id}/merged_markDup.tsv",
+    params: 
+        cell_id_lst = cell_ids
+    script:
+        "src/mergeMarkDup.py"
+
+rule mergeFlagstat:
+    input: expand("output/{{sample_id}}/{cell_id}/0_qc/flagstat/{cell_id}.flagstat.txt", cell_id = cell_ids)
+    output: 
+        metric = "output/{sample_id}/merged_flagstat.tsv",
+    params: 
+        cell_id_lst = cell_ids
+    script:
+        "src/mergeFlagstat.py"
+
+rule mergeWGSmetric:
+    input: expand("output/{{sample_id}}/{cell_id}/0_qc/WgsMetrics/{cell_id}.wgsMetric.txt", cell_id = cell_ids)
+    output: 
+        metric = "output/{sample_id}/merged_WGS.tsv",
+    params: 
+       cell_id_lst = cell_ids
+    script:
+        "src/mergeWGS.py"
+
+rule mergeGCmetric:
+    input: expand("output/{{sample_id}}/{cell_id}/0_qc/gcBias/{cell_id}.gcBias_metric.txt", cell_id = cell_ids)
+    output: 
+        metric = "output/{sample_id}/merged_GCbias.csv",
+    params: 
+       cell_id_lst = cell_ids
+    script:
+        "src/mergeGC.py"
+
+rule mergeCoverage:
+    input: 
+        flagstat = "output/{sample_id}/merged_flagstat.tsv",
+        insertSize = "output/{sample_id}/merged_insert_size.tsv",
+        genomeIndex = config["reference_genome"] + ".fai"
+    output: 
+        metric = "output/{sample_id}/merged_Coverage.tsv"
+    script:
+        "src/getCoverage.py"
+
+rule mergeMtCoverage:
+    input: expand("output/{{sample_id}}/{cell_id}/0_qc/mtDNA/{cell_id}.mtCov.bed", cell_id = cell_ids)
+    output: 
+        metric = "output/{sample_id}/merged_mtCoverage.tsv"
+    params: 
+       cell_id_lst = cell_ids
+    script:
+        "src/mergeMtCoverage.py"
+
+rule collectAllMetric:
+    input: 
+        "output/{sample_id}/merged_insert_size.tsv",
+        "output/{sample_id}/merged_markDup.tsv",
+        "output/{sample_id}/merged_flagstat.tsv",
+        "output/{sample_id}/merged_WGS.tsv",
+        "output/{sample_id}/merged_Coverage.tsv",
+        "output/{sample_id}/merged_mtCoverage.tsv",
+        config["metadata"]
+    output: "output/{sample_id}/allMetrics.tsv"
+    script:
+        "src/collectAllMetric.py"
